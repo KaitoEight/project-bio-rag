@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light only" />
+  <meta name="supported-color-schemes" content="light" />
+  <title>Technical Handover - Biology RAG</title>
+  <style>
+    :root {
+      color-scheme: light !important;
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #334155;
+      --line: #dbe3ef;
+      --code-bg: #eef2f7;
+      --accent: #0ea5e9;
+      --accent-soft: #e0f2fe;
+    }
+    html, body { background: var(--bg) !important; color: var(--text) !important; }
+    body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; margin: 0; line-height: 1.65; }
+    .container { max-width: 1080px; margin: 0 auto; padding: 28px 16px 48px; }
+    .hero {
+      background: linear-gradient(135deg, #0b1324 0%, #0f2a4f 100%);
+      color: #f8fafc !important;
+      padding: 24px;
+      border-radius: 14px;
+      margin-bottom: 18px;
+    }
+    .hero * { color: #f8fafc !important; }
+    h1 { margin: 0 0 8px; font-size: 30px; }
+    h2 { margin: 26px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); font-size: 22px; }
+    .card { background: var(--card) !important; border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+    p, li { color: var(--muted) !important; }
+    code { background: var(--code-bg) !important; color: #111827 !important; border-radius: 6px; padding: 2px 6px; font-family: Consolas, "Courier New", monospace; font-size: .95em; }
+    pre { background: #0b1730 !important; color: #e5e7eb !important; border-radius: 10px; padding: 12px; border: 1px solid #1f355f; overflow-x: auto; }
+    pre code { background: transparent !important; color: inherit !important; padding: 0; }
+    table { width: 100%; border-collapse: collapse; background: #fff !important; border: 1px solid var(--line); margin: 10px 0; }
+    th, td { border: 1px solid var(--line); padding: 10px; text-align: left; vertical-align: top; color: #1e293b !important; }
+    th { background: #f1f5f9 !important; }
+    .note { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 10px 12px; border-radius: 8px; color: #0c4a6e !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="hero">
+      <h1>Technical Handover - Biology RAG</h1>
+      <p>Tài liệu bàn giao kỹ thuật: kiến trúc ETL/retrieval và quy trình CRUD metadata ảnh.</p>
+    </section>
+
+    <section class="card">
+      <h2>1) Kiến trúc tổng thể</h2>
+      <pre><code>PDF -> OCR text -> chunk -> text vector DB
+PDF -> detect/crop image -> metadata -> image vector DB
+manifest -> export review/db snapshot -> human edit -> apply/upsert -> sync vector DB
+query -> hybrid retriever -> LLM answer + image gallery</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>2) Modules và vai trò</h2>
+      <table>
+        <thead><tr><th>File</th><th>Vai trò</th><th>Điểm chính</th></tr></thead>
+        <tbody>
+          <tr><td><code>main.py</code></td><td>CLI orchestration</td><td>ETL text/image, export/apply/upsert metadata, Flask API</td></tr>
+          <tr><td><code>src/etl/image_review.py</code></td><td>CRUD metadata</td><td><code>export_db_snapshot</code>, <code>upsert_review_item</code>, <code>apply_review_updates</code></td></tr>
+          <tr><td><code>src/etl/image_processor.py</code></td><td>Image extraction</td><td>detect -> refine -> filter -> metadata</td></tr>
+          <tr><td><code>src/rag/image_vectorstore.py</code></td><td>Image retrieval</td><td>metadata + visual query, rerank, review-state filter</td></tr>
+          <tr><td><code>src/rag/hybrid_retriever.py</code></td><td>Hybrid search</td><td>text retrieval trước, image retrieval sau</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>3) CLI mới cho metadata</h2>
+      <pre><code>python main.py --export-image-db database/all_image_db.json
+python main.py --export-image-db database/sgk6_db.json --review-pdf "SGK KHTN 6 CD.pdf"
+
+python main.py --upsert-image-review-item database/one_item.json --review-user charlie
+
+python main.py --apply-image-review database/review_images.json --review-user charlie
+python main.py --apply-image-review database/review_images.json --review-pdf "SGK KHTN 6 CD.pdf" --review-user charlie
+
+python main.py --replace-image-db database/all_image_db.json --review-user charlie</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>4) Quy tắc apply/upsert</h2>
+      <ol>
+        <li><code>--apply-image-review</code> là upsert theo item trong JSON, không phải sync full.</li>
+        <li>Xóa item khỏi JSON array không làm item tự biến mất khỏi DB.</li>
+        <li>Muốn loại ảnh khỏi retrieval: <code>review_status=rejected|deleted</code> hoặc <code>is_active=false</code> hoặc <code>delete=true</code>.</li>
+        <li><code>--upsert-image-review-item</code>: update nếu đã có <code>image_id</code>, create mới nếu chưa có.</li>
+        <li><code>--replace-image-db</code>: replace toàn bộ manifest và rebuild image index theo snapshot JSON.</li>
+        <li><code>--review-pdf</code> cho phép apply/export theo đúng 1 tài liệu.</li>
+      </ol>
+      <div class="note">Lưu ý: tránh sửa trực tiếp <code>chroma.sqlite3</code>; nên đi qua CLI review/upsert để sync index an toàn.</div>
+    </section>
+
+    <section class="card">
+      <h2>5) Metadata schema cốt lõi</h2>
+      <table>
+        <thead><tr><th>Nhóm</th><th>Trường</th></tr></thead>
+        <tbody>
+          <tr><td>Identity</td><td><code>image_id</code>, <code>pdf_filename</code>, <code>page_number</code>, <code>bbox</code></td></tr>
+          <tr><td>File path</td><td><code>image_path</code>, <code>page_snapshot_path</code></td></tr>
+          <tr><td>Review</td><td><code>caption_vi_manual</code>, <code>keywords_vi_manual</code>, <code>review_status</code>, <code>is_active</code>, <code>review_notes</code></td></tr>
+          <tr><td>Final retrieval</td><td><code>final_caption_vi</code>, <code>final_keywords_vi</code>, <code>search_text</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>6) Quick onboarding</h2>
+      <ol>
+        <li>Chạy <code>python main.py --help</code>.</li>
+        <li>Chạy ETL mẫu <code>--text-only</code> + <code>--image-only</code>.</li>
+        <li>Export review, chỉnh thử 1 item, apply lại.</li>
+        <li>Test <code>--upsert-image-review-item</code> cho 1 item mới.</li>
+        <li>Mở Flask API hoặc frontend và kiểm tra gallery retrieve.</li>
+      </ol>
+    </section>
+  </div>
+</body>
+</html>

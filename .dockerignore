@@ -1,0 +1,28 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.db
+.venv
+venv
+env
+.env
+.vscode
+.idea
+
+# Tránh copy dữ liệu local nặng vào image
+database/
+data/
+document/
+cache/
+
+# Tránh copy các file log
+*.log
+processed_files.txt
+processed_images.txt
+
+# Docker files
+Dockerfile
+.dockerignore

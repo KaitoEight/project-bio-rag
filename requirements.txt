@@ -1,0 +1,48 @@
+# Biology RAG Dependencies
+
+# Core ML/AI
+torch>=2.0.0
+transformers>=4.40.0
+accelerate>=0.30.0
+huggingface-hub>=0.23.0
+sentence-transformers>=2.7.0
+
+# LangChain
+langchain>=0.2.0
+langchain-core>=0.2.0
+langchain-community>=0.1.0
+langchain-text-splitters>=0.2.0
+langchain-chroma>=0.2.0
+langchain-huggingface
+
+# Vector Database
+chromadb>=0.5.0
+
+# PDF & OCR
+pypdf>=4.2.0
+pdf2image
+pytesseract
+pymupdf>=1.23.0
+opencv-python>=4.9.0
+
+# Image Processing
+Pillow>=10.0.0
+
+# Utilities
+python-dotenv
+tqdm
+rapidocr-onnxruntime
+
+# Vietnamese OCR (PaddleOCR detection + VietOCR recognition)
+paddlepaddle-gpu
+paddleocr
+vietocr
+
+# Web Server
+Flask>=3.0.0
+Flask-CORS>=4.0.0
+
+# Evaluation
+langchain-openai>=0.1.0          # judge/generator qua endpoint OpenAI-compatible (MiMo/Groq/OpenRouter)
+pandas>=2.0.0
+rapidfuzz

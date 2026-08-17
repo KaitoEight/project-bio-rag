@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BioRAG - Hỏi đáp Sinh học</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #f0f4f8;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    background: linear-gradient(135deg, #1a73e8, #0d47a1);
+    color: white;
+    padding: 20px 32px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+
+  header h1 { font-size: 1.5rem; font-weight: 700; }
+  header p { opacity: 0.85; font-size: 0.9rem; margin-top: 4px; }
+
+  .chat-container {
+    flex: 1;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 24px 16px;
+    width: 100%;
+  }
+
+  .chat-box {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    padding: 20px;
+    height: calc(100vh - 220px);
+    min-height: 400px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .chat-box:empty::before {
+    content: 'Nhập câu hỏi về Sinh học THCS bên dưới 👇';
+    color: #999;
+    font-style: italic;
+    text-align: center;
+    margin: auto;
+  }
+
+  .msg {
+    display: flex;
+    gap: 10px;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg.user { flex-direction: row-reverse; }
+
+  .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+
+  .msg.user .avatar { background: #1a73e8; color: white; }
+  .msg.bot .avatar { background: #34a853; color: white; }
+
+  .bubble {
+    max-width: 75%;
+    padding: 12px 16px;
+    border-radius: 16px;
+    line-height: 1.6;
+    font-size: 0.95rem;
+  }
+
+  .msg.user .bubble {
+    background: #1a73e8;
+    color: white;
+    border-bottom-right-radius: 4px;
+  }
+
+  .msg.bot .bubble {
+    background: #f1f3f4;
+    color: #202124;
+    border-bottom-left-radius: 4px;
+  }
+
+  .bubble.error {
+    background: #fce8e6;
+    color: #c5221f;
+  }
+
+  .bubble.loading .dots::after {
+    content: '...';
+    animation: dots 1.5s infinite;
+  }
+
+  @keyframes dots {
+    0%   { content: '.'; }
+    33%  { content: '..'; }
+    66%  { content: '...'; }
+  }
+
+  .input-area {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    align-items: flex-end;
+  }
+
+  textarea {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid #e0e0e0;
+    border-radius: 24px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    resize: none;
+    outline: none;
+    min-height: 48px;
+    max-height: 150px;
+    transition: border-color 0.2s;
+    line-height: 1.5;
+  }
+
+  textarea:focus { border-color: #1a73e8; }
+
+  button {
+    background: #1a73e8;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.1s;
+  }
+
+  button:hover { background: #1557b0; }
+  button:active { transform: scale(0.95); }
+  button:disabled { background: #ccc; cursor: not-allowed; }
+
+  .info-bar {
+    text-align: center;
+    color: #666;
+    font-size: 0.8rem;
+    margin-top: 8px;
+    opacity: 0.7;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🧬 BioRAG — Hỏi đáp Sinh học THCS</h1>
+  <p>Hỏi đáp dựa trên sách giáo khoa KHTN 7-8-9 (KNTT)</p>
+</header>
+
+<div class="chat-container">
+  <div class="chat-box" id="chatBox"></div>
+
+  <div class="input-area">
+    <textarea id="input" rows="1" placeholder="Nhập câu hỏi sinh học..." onkeydown="onKeyDown(event)"></textarea>
+    <button id="sendBtn" onclick="send()" title="Gửi">&#10148;</button>
+  </div>
+  <div class="info-bar" id="infoBar">3,631 chunks đã indexed</div>
+</div>
+
+<script>
+const API = 'http://localhost:5000/api/chat';
+
+function addMsg(role, content, cls = '') {
+  const box = document.getElementById('chatBox');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `
+    <div class="avatar">${role === 'user' ? '👤' : '🤖'}</div>
+    <div class="bubble ${cls}">${escapeHtml(content)}</div>
+  `;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+function setLoading(loading) {
+  const btn = document.getElementById('sendBtn');
+  const inp = document.getElementById('input');
+  btn.disabled = loading;
+  inp.disabled = loading;
+  if (loading) {
+    addMsg('bot', '<span class="dots">Đang suy nghĩ</span>', 'loading');
+  }
+}
+
+async function send() {
+  const input = document.getElementById('input');
+  const question = input.value.trim();
+  if (!question) return;
+
+  addMsg('user', question);
+  input.value = '';
+  input.style.height = 'auto';
+  setLoading(true);
+
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, top_k: 10 })
+    });
+
+    const data = await res.json();
+    const msgs = document.querySelectorAll('.msg.bot');
+    const lastBot = msgs[msgs.length - 1];
+    if (lastBot) lastBot.remove();
+
+    if (data.error) {
+      addMsg('bot', 'Lỗi: ' + data.error, 'error');
+    } else {
+      addMsg('bot', data.answer || '(Không có câu trả lời)');
+    }
+  } catch (e) {
+    const msgs = document.querySelectorAll('.msg.bot');
+    const lastBot = msgs[msgs.length - 1];
+    if (lastBot) lastBot.remove();
+    addMsg('bot', 'Không thể kết nối API. Đảm bảo Flask server đang chạy trên port 5000.', 'error');
+  }
+
+  setLoading(false);
+}
+
+function onKeyDown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+}
+
+// auto-resize textarea
+const inp = document.getElementById('input');
+inp.addEventListener('input', () => {
+  inp.style.height = 'auto';
+  inp.style.height = Math.min(inp.scrollHeight, 150) + 'px';
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light only" />
+  <title>Huong Dan Van Hanh Project RAG</title>
+  <style>
+    :root { color-scheme: light !important; }
+    body {
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      max-width: 980px;
+      margin: 24px auto;
+      padding: 0 16px 40px;
+      line-height: 1.6;
+      color: #1f2937;
+      background: #f8fafc;
+    }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { margin-bottom: 8px; }
+    h2 { margin-top: 28px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
+    code {
+      background: #e5e7eb;
+      padding: 2px 6px;
+      border-radius: 5px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.95em;
+      color: #111827;
+    }
+    pre {
+      background: #f3f4f6 !important;
+      color: #111827 !important;
+      border: 1px solid #d1d5db;
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+    pre code {
+      background: transparent !important;
+      color: inherit !important;
+      padding: 0;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #e2e8f0; }
+    .note {
+      background: #ecfeff;
+      border-left: 4px solid #06b6d4;
+      padding: 10px 12px;
+      margin: 12px 0;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Huong Dan Van Hanh Project RAG</h1>
+  <p>Tai lieu nay mo ta cac buoc chay, cac lenh CLI, va quy trinh review/upsert metadata anh.</p>
+
+  <h2>1) Muc tieu he thong</h2>
+  <ul>
+    <li><b>Text index</b>: phuc vu tra loi noi dung van ban SGK.</li>
+    <li><b>Image index</b>: phuc vu tim anh minh hoa lien quan cau hoi.</li>
+    <li><b>Human review + CRUD metadata</b>: sua caption, loai bo anh sai, bo sung item moi.</li>
+  </ul>
+
+  <h2>2) Chuan bi moi truong</h2>
+  <h3>2.1 Cai dependencies</h3>
+  <pre><code>pip install -r requirements.txt</code></pre>
+
+  <h3>2.1b Neu chay tren Google Colab</h3>
+  <pre><code>!apt-get update
+!apt-get install -y poppler-utils
+!apt-get install -y tesseract-ocr tesseract-ocr-vie</code></pre>
+
+  <h3>2.2 Tao file .env</h3>
+  <pre><code>cp .env.example .env</code></pre>
+  <p>Neu chay tren Windows, khai bao dependency OCR/render PDF trong <code>.env</code>:</p>
+  <pre><code>TESSERACT_CMD=C:/Program Files/Tesseract-OCR/tesseract.exe
+POPPLER_PATH=C:/poppler/Library/bin</code></pre>
+  <p>Neu chua biet may cai Poppler/Tesseract o dau, repo co san <code>windows_tools/poppler.zip</code> va <code>windows_tools/tesseract-ocr.zip</code>. Giai nen va cau hinh theo <code>document/windows_tools_setup.md</code>.</p>
+  <ul>
+    <li>Poppler Windows releases: <a href="https://github.com/oschwartz10612/poppler-windows/releases/">https://github.com/oschwartz10612/poppler-windows/releases/</a></li>
+    <li>Huong dan Poppler cho pdf2image: <a href="https://pdf2image.readthedocs.io/en/latest/installation.html">https://pdf2image.readthedocs.io/en/latest/installation.html</a></li>
+    <li>Tesseract Windows UB Mannheim: <a href="https://github.com/UB-Mannheim/tesseract/wiki">https://github.com/UB-Mannheim/tesseract/wiki</a></li>
+    <li>Tai lieu Tesseract Windows UB Mannheim: <a href="https://ub-mannheim.github.io/Tesseract_Dokumentation/Tesseract_Doku_Windows.html">https://ub-mannheim.github.io/Tesseract_Dokumentation/Tesseract_Doku_Windows.html</a></li>
+  </ul>
+
+  <h2>3) Danh sach lenh va muc dich</h2>
+  <table>
+    <thead>
+      <tr><th>Lenh</th><th>Muc dich</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>python main.py --text-only</code></td><td>ETL chi text.</td></tr>
+      <tr><td><code>python main.py --image-only</code></td><td>ETL chi image.</td></tr>
+      <tr><td><code>python main.py --etl</code></td><td>ETL full text + image.</td></tr>
+      <tr><td><code>python main.py --export-image-review &lt;output.json&gt;</code></td><td>Export JSON review.</td></tr>
+      <tr><td><code>python main.py --export-image-review &lt;output.json&gt; --review-pdf "&lt;file.pdf&gt;"</code></td><td>Export review theo 1 PDF.</td></tr>
+      <tr><td><code>python main.py --export-image-review &lt;output.json&gt; --review-include-completed</code></td><td>Export ca item da review.</td></tr>
+      <tr><td><code>python main.py --export-image-db &lt;output.json&gt;</code></td><td>Export snapshot metadata DB (manifest).</td></tr>
+      <tr><td><code>python main.py --export-image-db &lt;output.json&gt; --review-pdf "&lt;file.pdf&gt;"</code></td><td>Export snapshot DB theo PDF.</td></tr>
+      <tr><td><code>python main.py --upsert-image-review-item &lt;item.json&gt; --review-user &lt;name&gt;</code></td><td>Upsert 1 item theo image_id.</td></tr>
+      <tr><td><code>python main.py --apply-image-review &lt;review.json&gt; --review-user &lt;name&gt;</code></td><td>Apply batch review vao vector DB.</td></tr>
+      <tr><td><code>python main.py --apply-image-review &lt;review.json&gt; --review-pdf "&lt;file.pdf&gt;" --review-user &lt;name&gt;</code></td><td>Apply batch chi cho 1 PDF.</td></tr>
+      <tr><td><code>python main.py --replace-image-db &lt;snapshot.json&gt; --review-user &lt;name&gt;</code></td><td>Replace manifest va rebuild image index theo snapshot.</td></tr>
+      <tr><td><code>python main.py --api --port 5000</code></td><td>Mo Flask API server.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4) Quy tac review/upsert (quan trong)</h2>
+  <ol>
+    <li><code>--apply-image-review</code> la upsert theo item co trong file JSON, khong phai sync full.</li>
+    <li>Xoa item khoi JSON array khong dong nghia xoa khoi DB.</li>
+    <li>Muon loai khoi retrieval: dat <code>review_status=rejected|deleted</code>, hoac <code>is_active=false</code>, hoac <code>delete=true</code>.</li>
+    <li><code>--upsert-image-review-item</code> se create neu <code>image_id</code> chua ton tai, update neu da ton tai.</li>
+    <li><code>--replace-image-db</code> la sync full theo snapshot: item khong con trong JSON se bi xoa khoi manifest va image index.</li>
+  </ol>
+
+  <h2>5) Quy trinh khuyen nghi</h2>
+  <h3>Kich ban A: Khoi tao moi</h3>
+  <pre><code>python main.py --text-only
+python main.py --image-only
+python main.py --export-image-review database/review_images.json
+python main.py --apply-image-review database/review_images.json --review-user charlie
+python main.py --api --port 5000</code></pre>
+
+  <h3>Kich ban B: Chi review 1 PDF</h3>
+  <pre><code>python main.py --export-image-review database/review_sgk6.json --review-pdf "SGK KHTN 6 CD.pdf"
+python main.py --apply-image-review database/review_sgk6.json --review-pdf "SGK KHTN 6 CD.pdf" --review-user charlie</code></pre>
+
+  <h3>Kich ban C: Upsert 1 item</h3>
+  <pre><code>python main.py --upsert-image-review-item database/one_item.json --review-user charlie</code></pre>
+
+  <h3>Kich ban D: Replace toan bo image DB theo snapshot</h3>
+  <pre><code>python main.py --export-image-db database/all_image_db.json
+python main.py --replace-image-db database/all_image_db.json --review-user charlie</code></pre>
+  <pre><code>[
+  {
+    "image_id": "manual_0001",
+    "pdf_filename": "SGK KHTN 6 CD.pdf",
+    "page_number": 88,
+    "image_path": "D:/personal_repo/project_rag/database/images/SGK KHTN 6 CD/page_88_img_manual_1.png",
+    "caption_vi_manual": "Hai con hai ma tren tang bang",
+    "keywords_vi_manual": "hai ma, vung cuc, bang tuyet",
+    "review_status": "edited",
+    "is_active": true
+  },
+  {
+    "image_id": "bad_image_0001",
+    "review_status": "rejected",
+    "is_active": false
+  }
+]</code></pre>
+
+  <h2>6) Kiem tra sau khi chay</h2>
+  <ul>
+    <li>Co file <code>database/chroma.sqlite3</code>.</li>
+    <li>Co file <code>database/image_review_manifest.jsonl</code>.</li>
+    <li>Co anh trong <code>database/images/...</code>.</li>
+  </ul>
+
+  <div class="note">
+    Goi y: Neu uu tien toc do ETL image, dat <code>IMAGE_CAPTION_ENABLED=false</code> va dung flow review thu cong.
+  </div>
+</body>
+</html>
